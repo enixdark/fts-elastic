@@ -1,123 +1,186 @@
 {
-    "settings": {
-      "number_of_shards": 10,
-      "number_of_replicas": 0,
-      "analysis": {
-        "normalizer": {
-          "lowercase": {
-            "type": "custom",
-            "char_filter": [],
-            "filter": ["lowercase"]
-          }
+  "settings": {
+    "number_of_shards": 10,
+    "number_of_replicas": 0,
+    "analysis": {
+      "normalizer": {
+        "lowercase": {
+          "type": "custom",
+          "char_filter": [],
+          "filter": ["lowercase"]
+        }
+      },
+      "char_filter": {
+        "remove_email_address": {
+          "type": "pattern_replace",
+          "pattern": "(<[^>]*>)",
+          "replacement": " "
+        }
+      },
+      "filter": {
+        "email": {
+          "type": "pattern_capture",
+          "preserve_original": true,
+          "max_token_length": 64,
+          "patterns": [
+            "([^@]+)",
+            "(\\p{L}+)",
+            "(\\d+)",
+            "@(.+)",
+            "([^-@]+)"
+          ]
         },
-        "char_filter": {
-          "remove_email_address": {
-            "type": "pattern_replace",
-            "pattern": "(<[^>]*>)",
-            "replacement": " "
-          }
+        "max50char": {
+          "type": "length",
+          "min": 2,
+          "max": 50
         },
-        "filter": {
-          "email": {
-            "type": "pattern_capture",
-            "preserve_original": true,
-            "max_token_length": 64,
-            "patterns": [
-              "([^@]+)",
-              "(\\p{L}+)",
-              "(\\d+)",
-              "@(.+)",
-              "([^-@]+)"
-            ]
-          },
-          "max50char": {
-            "type": "length",
-            "min": 2,
-            "max": 50
-          },
-          "limit1000": {
-            "type": "limit",
-            "max_token_count": 1000
-          }
+        "limit1000": {
+          "type": "limit",
+          "max_token_count": 1000
+        }
+      },
+      "tokenizer": {
+        "email_address": {
+          "type": "pattern",
+          "pattern": "<([^>]+)>",
+          "group": 1
+        }
+      },
+      "analyzer": {
+        "body": {
+          "tokenizer": "standard",
+          "filter": ["asciifolding", "lowercase", "unique", "max50char", "limit1000"]
         },
-        "tokenizer": {
-          "email_address": {
-            "type": "pattern",
-            "pattern": "<([^>]+)>",
-            "group": 1
-          }
+        "email": {
+          "tokenizer": "uax_url_email",
+          "filter": ["asciifolding", "email", "lowercase", "unique"]
         },
-        "analyzer": {
-          "body": {
-            "tokenizer": "standard",
-            "filter": ["asciifolding", "lowercase", "unique", "max50char", "limit1000"]
-          },
-          "email": {
-            "tokenizer": "uax_url_email",
-            "filter": ["asciifolding", "email", "lowercase", "unique"]
-          },
-          "email_name": {
-            "tokenizer": "standard",
-            "filter": ["asciifolding", "lowercase", "unique"],
-            "char_filter": ["remove_email_address"]
-          },
-          "email_address": {
-            "tokenizer": "email_address",
-            "filter": ["email", "lowercase", "unique"]
-          }
+        "email_name": {
+          "tokenizer": "standard",
+          "filter": ["asciifolding", "lowercase", "unique"],
+          "char_filter": ["remove_email_address"]
+        },
+        "email_address": {
+          "tokenizer": "email_address",
+          "filter": ["email", "lowercase", "unique"]
         }
       }
+    }
+  },
+  "mappings": {
+    "_source": {
+      "enabled": true
     },
-    "mappings": {
-      "_source":  {
-        "enabled": true
+    "properties": {
+      "user": {
+        "type": "keyword",
+        "normalizer": "lowercase"
       },
-      "properties": {
-        "user":   {"type": "keyword", "normalizer": "lowercase"},
-        "box":    {"type": "keyword", "normalizer": "lowercase"},
-        "uid":    {"type": "integer"},
-        "subject":{"type": "text"},
-        "body":   {"type": "text", "analyzer": "body"},
-        "message-id":{"type": "keyword"},
-        "date": {
-          "type": "date",
-          "format": "[EEE, ][ ]d MMM yyyy HH:mm:ss[ Z][ (z)]"
-        },
-        "from": {
-          "type": "text", "analyzer": "email",
-          "fields": {
-            "name":    {"type": "text", "analyzer": "email_name"},
-            "address": {"type": "text", "analyzer": "email_address"}
+      "box": {
+        "type": "keyword",
+        "normalizer": "lowercase"
+      },
+      "mailbox_name": {
+        "type": "keyword",
+        "normalizer": "uppercase"
+      },
+      "uid": {
+        "type": "integer"
+      },
+      "subject": {
+        "type": "text"
+      },
+      "body": {
+        "type": "text",
+        "analyzer": "body"
+      },
+      "is_attachment": {
+        "type": "boolean",
+      },
+      "size": {
+        "type": "integer",
+      },
+      "vsize": {
+        "type": "integer",
+      },
+      "message-id": {
+        "type": "keyword"
+      },
+      "date": {
+        "type": "date",
+        "format": "[EEE, ][ ]d MMM yyyy HH:mm:ss[ Z][ (z)]"
+      },
+      "from": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
           }
-        },
-        "sender": {
-          "type": "text", "analyzer": "email",
-          "fields": {
-            "name":    {"type": "text", "analyzer": "email_name"},
-            "address": {"type": "text", "analyzer": "email_address"}
+        }
+      },
+      "sender": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
           }
-        },
-        "to":     {
-          "type": "text", "analyzer": "email",
-          "fields": {
-            "name":    {"type": "text", "analyzer": "email_name"},
-            "address": {"type": "text", "analyzer": "email_address"}
+        }
+      },
+      "to": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
           }
-        },
-        "cc":     {
-          "type": "text", "analyzer": "email",
-          "fields": {
-            "name":    {"type": "text", "analyzer": "email_name"},
-            "address": {"type": "text", "analyzer": "email_address"}
+        }
+      },
+      "cc": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
           }
-        },
-        "bcc":    {
-          "type": "text", "analyzer": "email",
-          "fields": {
-            "name":    {"type": "text", "analyzer": "email_name"},
-            "address": {"type": "text", "analyzer": "email_address"}
+        }
+      },
+      "bcc": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
           }
         }
       }
     }
   }
+}
