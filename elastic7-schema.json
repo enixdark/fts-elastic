@@ -105,7 +105,7 @@
         "type": "integer",
       },
       "message-id": {
-        "type": "keyword"
+        "type": "keyword",
       },
       "date": {
         "type": "date",
