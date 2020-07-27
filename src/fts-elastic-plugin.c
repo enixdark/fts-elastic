@@ -41,7 +41,7 @@ fts_elastic_plugin_init_settings(struct mail_user *user,
     if (str == NULL) {
         str = "";
     }
-
+    i_debug("\n test =====================");
     set->bulk_size = 5*1024*1024; /* 5 MB */
     set->refresh_by_fts = TRUE;
     set->refresh_on_update = FALSE;
@@ -77,6 +77,7 @@ fts_elastic_plugin_init_settings(struct mail_user *user,
         }
     }
 
+    i_debug("\n ccccccccccccc =====================");
     FUNC_END();
     return 0;
 }
@@ -152,7 +153,6 @@ ftss_backend_elastic_update_set_mailbox(struct fts_backend_update_context *_ctx,
     FUNC_START();
     struct elastic_fts_backend_update_context *ctx =
         (struct elastic_fts_backend_update_context *)_ctx;
-    i_debug("dddddddddddddddddddddd =================%s\n", ctx);
     FUNC_END();
 }
 
@@ -163,11 +163,6 @@ static void fts_mail_index(struct mail *_mail)
         //struct fts_elastic_mailbox *fbox = FTS_CONTEXT(_mail->box);
 	struct fts_elastic_transaction_context *ft = FTS_CONTEXT(_mail->transaction);
 	struct fts_elastic_mailbox_list *flist = FTS_LIST_CONTEXT(_mail->box->list);
-	i_debug("\nTTTTTTTTTTTTTTTTTTT %s\n", (_mail->box)->_path);
-	i_debug("\nTTTTTTXXXXXXXXXXXXX %s\n", ((_mail->box)->list)->name);
-
-
-	i_debug("\n+++++++++++++++++++ %s\n", flist->backend->name);
 	//ftss_backend_elastic_update_set_mailbox(flist->update_ctx, _mail->box);
 	//ftss_backend_elastic_update_set_mailbox(fbox->sync_update_ctx, _mail->box);
 }
@@ -188,13 +183,6 @@ static void fts_elastic_mail_precache(struct mail *_mail)
 	} T_END;
 }
 
-static int fts_elastic_get_parts(struct mail *mail,
-			 struct message_part **parts_r) {
-
-	i_debug("part============================");
-	return 1;
-}	
-
 static void fts_elastic_mail_allocated(struct mail *_mail)
 {
 	FUNC_START();
@@ -203,7 +191,6 @@ static void fts_elastic_mail_allocated(struct mail *_mail)
 	struct fts_elastic_mailbox *fbox = FTS_CONTEXT(_mail->box);
         struct fts_elastic_mail *fmail;
 
-	i_debug("CACCCCCCCCCCCCCCCCCCC ================\n");
 	//if (fbox == NULL)
 	//  return;
 
@@ -233,7 +220,6 @@ static void fts_elastic_mailbox_list_created(struct mailbox_list *list)
 	const char *name, *path, *error;
 
 	name = mail_user_plugin_getenv(list->ns->user, "fts");
-	i_debug("name :======================= %s\n", name);
 	if (name == NULL) {
 		if (list->mail_set->mail_debug)
 			i_debug("fts_elastic: No fts_elastic setting - plugin disabled");
@@ -251,11 +237,9 @@ static void fts_elastic_mailbox_list_created(struct mailbox_list *list)
 		i_error("fts: Failed to initialize backend '%s': %s",
 			name, error);
 	} else {
-		i_debug("init ===============================");
 		struct fts_elastic_mailbox_list *flist;
 		struct mailbox_list_vfuncs *v = list->vlast;
 
-		i_debug("\nbackend ===============================%s", backend->name);
 		if ((backend->flags & FTS_BACKEND_FLAG_FUZZY_SEARCH) != 0)
 			list->ns->user->fuzzy_search = TRUE;
 

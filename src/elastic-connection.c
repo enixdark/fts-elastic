@@ -125,6 +125,7 @@ int elastic_connection_init(const struct fts_elastic_settings *set,
 
     *conn_r = conn;
 
+    i_debug("sadaaasa \n \n DSADASDASASASADAS");
     FUNC_END_RET_INT(0);
     return 0;
 }
@@ -265,7 +266,7 @@ int elastic_connection_post(struct elastic_connection *conn,
     struct http_client_request *http_req = NULL;
     struct istream *post_payload = NULL;
     const char *method = "POST";
-    //i_debug("sasasaasdassas===============");
+    i_debug("iasdsaasasadsaas sasasaasdassas===============");
     if (conn == NULL || path == NULL || data == NULL) {
         i_error("fts_elastic: connection_post: critical error during POST");
         return -1;
