@@ -5,11 +5,17 @@
 #include "lib.h"
 #include "array.h"
 #include "http-client.h"
+#include "mailbox-list.h"
+#include "mailbox-list-private.h"
+#include "mail-storage.h"
+#include "mail-storage-private.h"
 #include "mail-user.h"
 #include "mail-storage-hooks.h"
 #include "fts-elastic-plugin.h"
-
+#include "fts-storage.h"
 #include <stdlib.h>
+
+#define VIRTUAL_STORAGE_NAME "virtual"
 
 const char *fts_elastic_plugin_version = DOVECOT_ABI_VERSION;
 struct http_client *elastic_http_client = NULL;
@@ -23,8 +29,9 @@ fts_elastic_plugin_init_settings(struct mail_user *user,
                                  const char *str)
 {
     FUNC_START();
+    i_debug("fts_elastic_plugin_init_settings");
     const char *const *tmp;
-
+     
     /* validate our parameters */
     if (user == NULL || set == NULL) {
         i_error("fts_elastic: critical error initialisation");
@@ -77,6 +84,7 @@ fts_elastic_plugin_init_settings(struct mail_user *user,
 static void fts_elastic_mail_user_create(struct mail_user *user, const char *env)
 {
     FUNC_START();
+    i_debug("fts_elastic_mail_user_create");
     struct fts_elastic_user *fuser = NULL;
 
     /* validate our parameters */
@@ -112,8 +120,158 @@ static void fts_elastic_mail_user_created(struct mail_user *user)
     FUNC_END();
 }
 
+struct elastic_fts_backend_update_context
+{
+    struct fts_backend_update_context ctx;
+
+    struct mailbox *prev_box;
+    char box_guid[MAILBOX_GUID_HEX_LENGTH + 1];
+    const char *username;
+
+    uint32_t uid;
+
+    /* used to build multi-part messages. */
+    string_t *current_key;
+    buffer_t *current_value;
+
+    ARRAY(struct elastic_fts_field)
+    fields;
+
+    /* build a json string for bulk indexing */
+    string_t *json_request;
+
+    unsigned int body_open : 1;
+    unsigned int documents_added : 1;
+    unsigned int expunges : 1;
+};
+
+static void
+ftss_backend_elastic_update_set_mailbox(struct fts_backend_update_context *_ctx,
+                                       struct mailbox *box)
+{
+    FUNC_START();
+    struct elastic_fts_backend_update_context *ctx =
+        (struct elastic_fts_backend_update_context *)_ctx;
+    i_debug("dddddddddddddddddddddd =================%s\n", ctx);
+    FUNC_END();
+}
+
+static void fts_mail_index(struct mail *_mail)
+{
+	//struct fts_transaction_context *ft = FTS_CONTEXT(_mail->transaction);
+	//struct fts_mailbox_list *flist = FTS_LIST_CONTEXT(_mail->box->list);
+        //struct fts_elastic_mailbox *fbox = FTS_CONTEXT(_mail->box);
+	struct fts_elastic_transaction_context *ft = FTS_CONTEXT(_mail->transaction);
+	struct fts_elastic_mailbox_list *flist = FTS_LIST_CONTEXT(_mail->box->list);
+	i_debug("\nTTTTTTTTTTTTTTTTTTT %s\n", (_mail->box)->_path);
+	i_debug("\nTTTTTTXXXXXXXXXXXXX %s\n", ((_mail->box)->list)->name);
+
+
+	i_debug("\n+++++++++++++++++++ %s\n", flist->backend->name);
+	//ftss_backend_elastic_update_set_mailbox(flist->update_ctx, _mail->box);
+	//ftss_backend_elastic_update_set_mailbox(fbox->sync_update_ctx, _mail->box);
+}
+
+static void fts_elastic_mail_precache(struct mail *_mail)
+{
+	struct mail_private *mail = (struct mail_private *)_mail;
+	struct fts_elastic_mail *fmail = FTS_MAIL_CONTEXT(mail);
+	struct fts_elastic_transaction_context *ft = FTS_CONTEXT(_mail->transaction);
+
+	//fts_mail_index(_mail);
+	fmail->module_ctx.super.precache(_mail);
+	if (fmail->virtual_mail) {
+		if (ft->highest_virtual_uid < _mail->uid)
+			ft->highest_virtual_uid = _mail->uid;
+	} else T_BEGIN {
+		fts_mail_index(_mail);
+	} T_END;
+}
+
+static int fts_elastic_get_parts(struct mail *mail,
+			 struct message_part **parts_r) {
+
+	i_debug("part============================");
+	return 1;
+}	
+
+static void fts_elastic_mail_allocated(struct mail *_mail)
+{
+	FUNC_START();
+	struct mail_private *mail = (struct mail_private *)_mail;
+	struct mail_vfuncs *v = mail->vlast;
+	struct fts_elastic_mailbox *fbox = FTS_CONTEXT(_mail->box);
+        struct fts_elastic_mail *fmail;
+
+	i_debug("CACCCCCCCCCCCCCCCCCCC ================\n");
+	//if (fbox == NULL)
+	//  return;
+
+	fmail = p_new(mail->pool, struct fts_elastic_mail, 1);
+	fmail->module_ctx.super = *v;
+	mail->vlast = &fmail->module_ctx.super;
+	fmail->virtual_mail =
+		strcmp(_mail->box->storage->name, VIRTUAL_STORAGE_NAME) == 0;
+	v->precache = fts_elastic_mail_precache;
+	//v->get_parts = fts_elastic_get_parts;
+	MODULE_CONTEXT_SET(mail, fts_elastic_mail_module, fmail);
+	//MODULE_CONTEXT_SET(, fts_elastic_mail_module, fmail);
+	FUNC_END();
+}
+
+static void fts_elastic_mailbox_list_deinit(struct mailbox_list *list)
+{
+	struct fts_elastic_mailbox_list *flist = FTS_LIST_CONTEXT(list);
+
+	fts_backend_deinit(&flist->backend);
+	flist->module_ctx.super.deinit(list);
+}
+
+static void fts_elastic_mailbox_list_created(struct mailbox_list *list)
+{
+	struct fts_backend *backend = &fts_backend_elastic;
+	const char *name, *path, *error;
+
+	name = mail_user_plugin_getenv(list->ns->user, "fts");
+	i_debug("name :======================= %s\n", name);
+	if (name == NULL) {
+		if (list->mail_set->mail_debug)
+			i_debug("fts_elastic: No fts_elastic setting - plugin disabled");
+		return;
+	}
+
+	if (!mailbox_list_get_root_path(list, MAILBOX_LIST_PATH_TYPE_INDEX, &path)) {
+		if (list->mail_set->mail_debug) {
+			i_debug("fts_elastic: Indexes disabled for namespace '%s'",
+				list->ns->prefix);
+		}
+		return;
+	}
+	if (fts_backend_init(name, list->ns, &error, &backend) < 0) {
+		i_error("fts: Failed to initialize backend '%s': %s",
+			name, error);
+	} else {
+		i_debug("init ===============================");
+		struct fts_elastic_mailbox_list *flist;
+		struct mailbox_list_vfuncs *v = list->vlast;
+
+		i_debug("\nbackend ===============================%s", backend->name);
+		if ((backend->flags & FTS_BACKEND_FLAG_FUZZY_SEARCH) != 0)
+			list->ns->user->fuzzy_search = TRUE;
+
+		flist = p_new(list->pool, struct fts_elastic_mailbox_list, 1);
+		flist->module_ctx.super = *v;
+		flist->backend = backend;
+		list->vlast = &flist->module_ctx.super;
+		v->deinit = fts_elastic_mailbox_list_deinit;
+		MODULE_CONTEXT_SET(list, fts_elastic_mailbox_list_module, flist);
+	}
+}
+
 static struct mail_storage_hooks fts_elastic_mail_storage_hooks = {
-    .mail_user_created = fts_elastic_mail_user_created
+    //.mailbox_list_created = fts_elastic_mailbox_list_created,
+    .mail_user_created = fts_elastic_mail_user_created,
+    //.mail_allocated = fts_elastic_mail_allocated
 };
 
 void fts_elastic_plugin_init(struct module *module)

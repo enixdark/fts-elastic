@@ -4,9 +4,19 @@
 #include "module-context.h"
 #include "mail-user.h"
 #include "fts-api-private.h"
+#include "mail-storage.h"
+#include "mail-storage-private.h"
+#include "mailbox-list.h"
+#include "mailbox-list-private.h"
 
 #define FTS_ELASTIC_USER_CONTEXT(obj) \
     MODULE_CONTEXT(obj, fts_elastic_user_module)
+#define FTS_MAIL_CONTEXT(obj) \
+    MODULE_CONTEXT(obj, fts_elastic_mail_module)
+#define FTS_CONTEXT(obj) \
+	MODULE_CONTEXT(obj, fts_elastic_storage_module)
+#define FTS_LIST_CONTEXT(obj) \
+	MODULE_CONTEXT(obj, fts_elastic_mailbox_list_module)
 
 #ifndef i_zero
 #define i_zero(p) \
@@ -27,9 +37,50 @@ struct fts_elastic_user {
     struct fts_elastic_settings set; 		/* loaded settings */
 };
 
+struct fts_elastic_mailbox {
+        union mailbox_module_context module_ctx;
+        struct fts_backend_update_context *sync_update_ctx;
+};
+
+struct fts_elastic_mail {
+        union mail_module_context module_ctx;
+        char score[30];
+
+        unsigned int virtual_mail:1;
+};
+
+struct fts_elastic_transaction_context {
+        union mailbox_transaction_module_context module_ctx;
+
+        struct fts_scores *scores;
+        uint32_t next_index_seq;
+        uint32_t highest_virtual_uid;
+
+        unsigned int precached:1;
+        unsigned int failed:1;
+};
+
+struct fts_elastic_mailbox_list {
+        union mailbox_list_module_context module_ctx;
+        struct fts_backend *backend;
+
+        struct fts_backend_update_context *update_ctx;
+        unsigned int update_ctx_refcount;
+};
+
 extern const char *fts_elastic_plugin_dependencies[];
 extern struct fts_backend fts_backend_elastic;
 extern MODULE_CONTEXT_DEFINE(fts_elastic_user_module, &mail_user_module_register);
+
+static MODULE_CONTEXT_DEFINE_INIT(fts_elastic_storage_module,
+				  &mail_storage_module_register);
+static MODULE_CONTEXT_DEFINE_INIT(fts_elastic_mail_module, &mail_module_register);
+
+static MODULE_CONTEXT_DEFINE_INIT(fts_elastic_mailbox_list_module,
+				  &mailbox_list_module_register);
+//static MODULE_CONTEXT_DEFINE_INIT(fts_elastic_mailbox_list_module,
+//				  &mailbox_list_module_register);
+
 extern struct http_client *elastic_http_client;
 
 void fts_elastic_plugin_init(struct module *module);

@@ -6,6 +6,7 @@
 #include "array.h"
 #include "hash.h"
 #include "str.h"
+#include "string.h"
 #include "strescape.h"
 #include "ioloop.h"
 #include "istream.h"
@@ -30,7 +31,8 @@ struct elastic_search_context {
 struct elastic_connection {
     struct mail_namespace *ns;
     const char *username;
-
+    char *es_username;
+    char *es_password;
     /* ElasticSearch HTTP API information */
     char *http_host;
     in_port_t http_port;
@@ -72,28 +74,41 @@ int elastic_connection_init(const struct fts_elastic_settings *set,
     }
 
     /* validate the url */
-    if (http_url_parse(set->url, NULL, 0, pool_datastack_create(),
+    if (http_url_parse(set->url, NULL, HTTP_URL_ALLOW_USERINFO_PART, pool_datastack_create(),
                &http_url, &error) < 0) {
         *error_r = t_strdup_printf(
             "fts_elastic: Failed to parse HTTP url: %s", error);
         return -1;
     }
-
     conn = i_new(struct elastic_connection, 1);
     conn->ctx = i_new(struct elastic_search_context, 1);
     conn->ns = ns;
     conn->username = ns->owner ? ns->owner->username : "-";
+    i_error("test error");
+    if (http_url->user != NULL) {
+        conn->es_username = http_url->user;
+    }
+    if (http_url->user != NULL) {
+        conn->es_password = http_url->password;
+    }
+    
 #if defined(DOVECOT_PREREQ) && DOVECOT_PREREQ(2,3)
     conn->http_host = i_strdup(http_url->host.name);
 #else
     conn->http_host = i_strdup(http_url->host_name);
 #endif
-    conn->http_port = http_url->port;
     conn->http_base_path = i_strdup(http_url->path);
+    //if (conn->es_username && conn->es_password) {
+   // 	    conn->http_host = i_strdup(t_strconcat(conn->es_username, ":", conn->es_password, "@", conn->http_host, NULL));
+    //}
+    //i_error("%s", conn->http_host);
+    conn->http_port = http_url->port;
+    //i_error("%s", conn->http_host);
     conn->http_ssl = http_url->have_ssl;
     conn->debug = set->debug;
     conn->refresh_on_update = set->refresh_on_update;
     conn->tok = json_tokener_new();
+    
 
     /* guard against init being called multiple times */
     if (elastic_http_client == NULL) {
@@ -250,7 +265,7 @@ int elastic_connection_post(struct elastic_connection *conn,
     struct http_client_request *http_req = NULL;
     struct istream *post_payload = NULL;
     const char *method = "POST";
-
+    //i_debug("sasasaasdassas===============");
     if (conn == NULL || path == NULL || data == NULL) {
         i_error("fts_elastic: connection_post: critical error during POST");
         return -1;
@@ -259,7 +274,6 @@ int elastic_connection_post(struct elastic_connection *conn,
     if (conn->post_type == ELASTIC_POST_TYPE_DELETE) {
         method = "DELETE";
     }
-
     http_req = http_client_request(elastic_http_client, method, conn->http_host,
                                    path, elastic_connection_http_response, conn);
     http_client_request_set_port(http_req, conn->http_port);
@@ -321,6 +335,9 @@ void elastic_connection_search_hits(struct elastic_search_context *ctx,
             i_warning("fts_elastic: uid <= 0 in _id:\"%s\"", _id);
             continue;
         }
+         
+	//i_debug("MAIL================%s", *id_part);
+
         /* we currently search only in one mbox
         id_part++;
         if (*id_part == NULL) {
@@ -570,3 +587,4 @@ int elastic_connection_delete_by_query(struct elastic_connection *conn,
     FUNC_END_RET_INT(conn->ctx->found);
     return conn->ctx->found;
 }
+
