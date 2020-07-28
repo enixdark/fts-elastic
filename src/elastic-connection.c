@@ -125,7 +125,6 @@ int elastic_connection_init(const struct fts_elastic_settings *set,
 
     *conn_r = conn;
 
-    i_debug("sadaaasa \n \n DSADASDASASASADAS");
     FUNC_END_RET_INT(0);
     return 0;
 }
@@ -135,6 +134,8 @@ void elastic_connection_deinit(struct elastic_connection *conn)
 {
     FUNC_START();
     if (conn != NULL) {
+	i_free(conn->es_password);
+        i_free(conn->es_username);
         i_free(conn->http_host);
         i_free(conn->http_base_path);
         i_free(conn->ctx);
@@ -266,7 +267,6 @@ int elastic_connection_post(struct elastic_connection *conn,
     struct http_client_request *http_req = NULL;
     struct istream *post_payload = NULL;
     const char *method = "POST";
-    i_debug("iasdsaasasadsaas sasasaasdassas===============");
     if (conn == NULL || path == NULL || data == NULL) {
         i_error("fts_elastic: connection_post: critical error during POST");
         return -1;
@@ -280,6 +280,7 @@ int elastic_connection_post(struct elastic_connection *conn,
     http_client_request_set_port(http_req, conn->http_port);
     http_client_request_set_ssl(http_req, conn->http_ssl);
     /* XXX: should be application/x-ndjson for bulk updates, but why when this works? */
+
     http_client_request_add_header(http_req, "Content-Type", "application/json");
 
     post_payload = i_stream_create_from_buffer(data);
@@ -337,7 +338,6 @@ void elastic_connection_search_hits(struct elastic_search_context *ctx,
             continue;
         }
          
-	//i_debug("MAIL================%s", *id_part);
 
         /* we currently search only in one mbox
         id_part++;

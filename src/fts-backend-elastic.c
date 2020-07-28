@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <limits.h>
+#include <regex.h> 
 
 #include "lib.h"
 #include "array.h"
@@ -559,7 +560,8 @@ fts_backend_elastic_header_want(const char *name)
         strcasecmp(name, "Sender") == 0 ||
         strcasecmp(name, "Message-ID") == 0 ||
 	strcasecmp(name, "Received") == 0 ||
-	strcasecmp(name, "mailbox_name") == 0;
+	strcasecmp(name, "mailbox_name") == 0 ||
+	strcasecmp(name, "is_attachment") == 0;
 }
 
 static bool
@@ -611,7 +613,39 @@ fts_backend_elastic_update_build_more(struct fts_backend_update_context *_ctx,
     FUNC_START();
     struct elastic_fts_backend_update_context *ctx =
         (struct elastic_fts_backend_update_context *)_ctx;
+    
+    regex_t regex;
+    int status;
+    status = regcomp(&regex, "attachment", 0);
+    if(status == 0 && data != NULL) {
+	struct elastic_fts_field *field;
+        field = i_new(struct elastic_fts_field, 1);
+        string_t *name = str_new(default_pool, 100);
+        str_append(name, "is_attachment");
+        field->key =  i_strdup(str_c(name));
+        field->value = str_new(default_pool, 256);
 
+	status = regexec(&regex, i_strdup(data), 0, NULL, 0);
+	if (status == 0) {
+		str_append(field->value, "true");
+	        array_append(&ctx->fields, field, 1);	
+	} else {
+		struct elastic_fts_field *exist_field;
+		int flag = 1;
+		array_foreach(&ctx->fields, exist_field){
+			if(flag == 1 && strcmp(exist_field->key, "is_attachment") == 0 ) {
+                                i_debug("\n\n44435344334443334=====flag\n");
+				flag = 0;
+			}
+		}
+
+		if (flag == 1) {
+			str_append(field->value, "false");
+			array_append(&ctx->fields, field, 1);
+		}
+	}
+    }
+    
     if (_ctx == NULL) {
         i_error("fts_elastic: update_build_more: critical error building message body");
         return -1;
