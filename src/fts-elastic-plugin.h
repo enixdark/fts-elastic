@@ -4,32 +4,89 @@
 #include "module-context.h"
 #include "mail-user.h"
 #include "fts-api-private.h"
+#include "mail-storage.h"
+#include "mail-storage-private.h"
+#include "mailbox-list.h"
+#include "mailbox-list-private.h"
 
 #define FTS_ELASTIC_USER_CONTEXT(obj) \
     MODULE_CONTEXT(obj, fts_elastic_user_module)
+#define FTS_MAIL_CONTEXT(obj) \
+    MODULE_CONTEXT(obj, fts_elastic_mail_module)
+#define FTS_CONTEXT(obj) \
+    MODULE_CONTEXT(obj, fts_elastic_storage_module)
+#define FTS_LIST_CONTEXT(obj) \
+    MODULE_CONTEXT(obj, fts_elastic_mailbox_list_module)
 
 #ifndef i_zero
 #define i_zero(p) \
-	memset(p, 0 + COMPILE_ERROR_IF_TRUE(sizeof(p) > sizeof(void *)), sizeof(*(p)))
+    memset(p, 0 + COMPILE_ERROR_IF_TRUE(sizeof(p) > sizeof(void *)), sizeof(*(p)))
 #endif
 
-struct fts_elastic_settings {
-    const char *url;	    /* base URL to an ElasticSearch instance */
+struct fts_elastic_settings
+{
+    const char *url;        /* base URL to an ElasticSearch instance */
     const char *rawlog_dir; /* directory where raw http request and response will be saved */
     unsigned int bulk_size; /* maximum size of values indexed in _bulk requests default=5MB */
-    bool refresh_on_update;	/* if we want add ?refresh=true to elastic query*/
-    bool refresh_by_fts;	/* if we want to allow refresh http request called by fts plugin */
-    bool debug;			    /* whether or not debug is set */
+    bool refresh_on_update; /* if we want add ?refresh=true to elastic query*/
+    bool refresh_by_fts;    /* if we want to allow refresh http request called by fts plugin */
+    bool debug;             /* whether or not debug is set */
 };
 
-struct fts_elastic_user {
-    union mail_user_module_context module_ctx;	/* mail user context */
-    struct fts_elastic_settings set; 		/* loaded settings */
+struct fts_elastic_user
+{
+    union mail_user_module_context module_ctx; /* mail user context */
+    struct fts_elastic_settings set;           /* loaded settings */
+};
+
+struct fts_elastic_mailbox
+{
+    union mailbox_module_context module_ctx;
+    struct fts_backend_update_context *sync_update_ctx;
+};
+
+struct fts_elastic_mail
+{
+    union mail_module_context module_ctx;
+    char score[30];
+
+    unsigned int virtual_mail : 1;
+};
+
+struct fts_elastic_transaction_context
+{
+    union mailbox_transaction_module_context module_ctx;
+
+    struct fts_scores *scores;
+    uint32_t next_index_seq;
+    uint32_t highest_virtual_uid;
+
+    unsigned int precached : 1;
+    unsigned int failed : 1;
+};
+
+struct fts_elastic_mailbox_list
+{
+    union mailbox_list_module_context module_ctx;
+    struct fts_backend *backend;
+
+    struct fts_backend_update_context *update_ctx;
+    unsigned int update_ctx_refcount;
 };
 
 extern const char *fts_elastic_plugin_dependencies[];
 extern struct fts_backend fts_backend_elastic;
 extern MODULE_CONTEXT_DEFINE(fts_elastic_user_module, &mail_user_module_register);
+
+static MODULE_CONTEXT_DEFINE_INIT(fts_elastic_storage_module,
+                                  &mail_storage_module_register);
+static MODULE_CONTEXT_DEFINE_INIT(fts_elastic_mail_module, &mail_module_register);
+
+static MODULE_CONTEXT_DEFINE_INIT(fts_elastic_mailbox_list_module,
+                                  &mailbox_list_module_register);
+//static MODULE_CONTEXT_DEFINE_INIT(fts_elastic_mailbox_list_module,
+//				  &mailbox_list_module_register);
+
 extern struct http_client *elastic_http_client;
 
 void fts_elastic_plugin_init(struct module *module);
@@ -37,9 +94,9 @@ void fts_elastic_plugin_deinit(void);
 
 #endif
 
-#if defined(DOVECOT_PREREQ) && DOVECOT_PREREQ(2,3)
+#if defined(DOVECOT_PREREQ) && DOVECOT_PREREQ(2, 3)
 #else
-#   define str_append_max(str, data, size) str_append_n(str, data, size);
+#define str_append_max(str, data, size) str_append_n(str, data, size);
 #endif
 
 #if !defined(FUNC_START)
@@ -50,10 +107,10 @@ void fts_elastic_plugin_deinit(void);
 #define FUNC_END_RET(ignore) ((void)0)
 #define FUNC_END_RET_INT(ignore) ((void)0)
 #else
-#define FUNC_START()		i_debug("%s:%d %s() start", __FILE__, __LINE__, __FUNCTION__)
-#define FUNC_IN()			i_debug("%s:%d %s() in", __FILE__, __LINE__, __FUNCTION__)
-#define FUNC_END()			i_debug("%s:%d %s() end", __FILE__, __LINE__, __FUNCTION__)
-#define FUNC_END_RET(r)		i_debug("%s:%d %s() return %s", __FILE__, __LINE__, __FUNCTION__, r)
-#define FUNC_END_RET_INT(r)	i_debug("%s:%d %s() return %d", __FILE__, __LINE__, __FUNCTION__, (int)r)
+#define FUNC_START() i_debug("%s:%d %s() start", __FILE__, __LINE__, __FUNCTION__)
+#define FUNC_IN() i_debug("%s:%d %s() in", __FILE__, __LINE__, __FUNCTION__)
+#define FUNC_END() i_debug("%s:%d %s() end", __FILE__, __LINE__, __FUNCTION__)
+#define FUNC_END_RET(r) i_debug("%s:%d %s() return %s", __FILE__, __LINE__, __FUNCTION__, r)
+#define FUNC_END_RET_INT(r) i_debug("%s:%d %s() return %d", __FILE__, __LINE__, __FUNCTION__, (int)r)
 #endif
 #endif
