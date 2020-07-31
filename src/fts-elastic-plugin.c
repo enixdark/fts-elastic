@@ -43,7 +43,6 @@ fts_elastic_plugin_init_settings(struct mail_user *user,
     {
         str = "";
     }
-    i_debug("\n test =====================");
     set->bulk_size = 5 * 1024 * 1024; /* 5 MB */
     set->refresh_by_fts = TRUE;
     set->refresh_on_update = FALSE;
@@ -99,7 +98,6 @@ fts_elastic_plugin_init_settings(struct mail_user *user,
         }
     }
 
-    i_debug("\n ccccccccccccc =====================");
     FUNC_END();
     return 0;
 }
@@ -277,9 +275,9 @@ static void fts_elastic_mailbox_list_created(struct mailbox_list *list)
 }
 
 static struct mail_storage_hooks fts_elastic_mail_storage_hooks = {
-    .mailbox_list_created = fts_elastic_mailbox_list_created,
+    //.mailbox_list_created = fts_elastic_mailbox_list_created,
     .mail_user_created = fts_elastic_mail_user_created, // listen hook for new message was created by user
-    .mail_allocated = fts_elastic_mail_allocated        // listen hook for new mail
+    //.mail_allocated = fts_elastic_mail_allocated        // listen hook for new mail
 };
 
 void fts_elastic_plugin_init(struct module *module)

@@ -292,6 +292,7 @@ int elastic_connection_post(struct elastic_connection *conn,
     }
     http_req = http_client_request(elastic_http_client, method, conn->http_host,
                                    path, elastic_connection_http_response, conn);
+
     http_client_request_set_port(http_req, conn->http_port);
     http_client_request_set_ssl(http_req, conn->http_ssl);
     /* XXX: should be application/x-ndjson for bulk updates, but why when this works? */

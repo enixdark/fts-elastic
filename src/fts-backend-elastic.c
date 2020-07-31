@@ -197,6 +197,18 @@ fts_backend_elastic_bulk_end(struct elastic_fts_backend_update_context *_ctx)
     {
         return;
     }
+    if(ctx->prev_box != NULL) {
+            struct elastic_fts_field *t_field;
+            t_field = i_new(struct elastic_fts_field, 1);
+            string_t *name = str_new(default_pool, 20);
+            str_append(name, "mailbox_name");
+            t_field->key =  i_strdup(str_c(name));
+            t_field->value = str_new(default_pool, 20);
+            str_append(t_field->value, ctx->prev_box->name);
+            array_append(&ctx->fields, t_field, 1);
+            buffer_set_used_size(name, 0);
+            //buffer_set_used_size(t_field->value, 0);
+    }
     array_foreach(&ctx->fields, field)
     {
         if (str_len(field->value) > 0)
@@ -228,7 +240,6 @@ fts_backend_elastic_get_last_mail(struct fts_backend *_backend,
                                   uint32_t *last_uid_r)
 {
     FUNC_START();
-    i_debug("\n GET LAST ==============================");
     FUNC_END();
     return 0;
 }
@@ -389,7 +400,6 @@ fts_backend_elastic_update_deinit(struct fts_backend_update_context *_ctx)
             str_free(&field->value);
             i_free(field->key);
         }
-        array_free(&ctx->fields);
     }
 
     /* perform the actual post */
@@ -398,7 +408,7 @@ fts_backend_elastic_update_deinit(struct fts_backend_update_context *_ctx)
 
     /* global clean-up */
     str_free(&ctx->json_request);
-    i_free(ctx);
+    free(ctx);
 
     FUNC_END();
     return 0;
@@ -436,17 +446,16 @@ fts_backend_elastic_update_set_mailbox(struct fts_backend_update_context *_ctx,
         }
         if (box->name != NULL)
         {
-            /* add mailbox name field into body */
             struct elastic_fts_field *field;
             field = i_new(struct elastic_fts_field, 1);
-            string_t *name = str_new(default_pool, 100);
+            string_t *name = str_new(default_pool, 20);
             str_append(name, "mailbox_name");
             field->key = i_strdup(str_c(name));
-            field->value = str_new(default_pool, 256);
+            field->value = str_new(default_pool, 20);
             str_append(field->value, box->name);
             array_append(&ctx->fields, field, 1);
+  
         }
-
         i_assert(strlen(box_guid) == sizeof(ctx->box_guid) - 1);
         memcpy(ctx->box_guid, box_guid, sizeof(ctx->box_guid) - 1);
     }
@@ -570,6 +579,8 @@ fts_backend_elastic_header_want(const char *name)
            strcasecmp(name, "Message-ID") == 0 ||
            strcasecmp(name, "Received") == 0 ||
            strcasecmp(name, "mailbox_name") == 0 ||
+           strcasecmp(name, "size") == 0 ||
+           strcasecmp(name, "vsize") == 0 ||
            strcasecmp(name, "is_attachment") == 0;
 }
 
@@ -626,18 +637,18 @@ fts_backend_elastic_update_build_more(struct fts_backend_update_context *_ctx,
     FUNC_START();
     struct elastic_fts_backend_update_context *ctx =
         (struct elastic_fts_backend_update_context *)_ctx;
-
     regex_t regex;
     int status;
-    status = regcomp(&regex, "attachment", 0);
+    status = regcomp(&regex, "attachment", 0);  
     if (status == 0 && data != NULL)
     {
+        
         struct elastic_fts_field *field;
         field = i_new(struct elastic_fts_field, 1);
-        string_t *name = str_new(default_pool, 100);
+        string_t *name = str_new(default_pool, 20);
         str_append(name, "is_attachment");
         field->key = i_strdup(str_c(name));
-        field->value = str_new(default_pool, 256);
+        field->value = str_new(default_pool, 20);
 
         status = regexec(&regex, i_strdup(data), 0, NULL, 0);
         if (status == 0)
@@ -645,26 +656,12 @@ fts_backend_elastic_update_build_more(struct fts_backend_update_context *_ctx,
             str_append(field->value, "true");
             array_append(&ctx->fields, field, 1);
         }
-        else
-        {
-            struct elastic_fts_field *exist_field;
-            int flag = 1;
-            /* use flag to check attachment column exists */
-            array_foreach(&ctx->fields, exist_field)
-            {
-                if (flag == 1 && strcmp(exist_field->key, "is_attachment") == 0)
-                {
-                    flag = 0;
-                }
-            }
-
-            if (flag == 1)
-            {
-                str_append(field->value, "false");
-                array_append(&ctx->fields, field, 1);
-            }
-        }
-    }
+        buffer_set_used_size(name, 0);
+        //buffer_set_used_size(field->key, 0);
+        //buffer_set_used_size(field->value, 0);
+        //i_free(field);
+    }    
+    regfree(&regex);
 
     if (_ctx == NULL)
     {
