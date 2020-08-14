@@ -640,23 +640,32 @@ fts_backend_elastic_update_build_more(struct fts_backend_update_context *_ctx,
     regex_t regex;
     int status;
     status = regcomp(&regex, "attachment", 0);  
+    
     if (status == 0 && data != NULL)
     {
         
         struct elastic_fts_field *field;
-        field = i_new(struct elastic_fts_field, 1);
-        string_t *name = str_new(default_pool, 20);
-        str_append(name, "is_attachment");
-        field->key = i_strdup(str_c(name));
-        field->value = str_new(default_pool, 20);
-
-        status = regexec(&regex, i_strdup(data), 0, NULL, 0);
+        status = regexec(&regex, i_strdup(data), 0, NULL, 0);        
+        array_foreach(&ctx->fields, field)
+        {
+            if (strcmp(field->key,"is_attachment") == 0)
+            {
+		status = 1;
+		break;
+            }
+        }
         if (status == 0)
         {
+            field = i_new(struct elastic_fts_field, 1);
+            string_t *name = str_new(default_pool, 20);
+            str_append(name, "is_attachment");
+            field->key = i_strdup(str_c(name));
+            field->value = str_new(default_pool, 20); 
             str_append(field->value, "true");
             array_append(&ctx->fields, field, 1);
+            buffer_set_used_size(name, 0);
         }
-        buffer_set_used_size(name, 0);
+        //buffer_set_used_size(name, 0);
         //buffer_set_used_size(field->key, 0);
         //buffer_set_used_size(field->value, 0);
         //i_free(field);
