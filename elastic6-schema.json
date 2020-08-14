@@ -29,6 +29,12 @@
         "uid": {
           "type": "integer"
         },
+        "thread_id": {
+          "type": "integer"
+        },
+        "is_flag": {
+          "type": "boolean"
+        },
         "from": {
           "type": "text"
         },
