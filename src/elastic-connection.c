@@ -87,12 +87,13 @@ int elastic_connection_init(const struct fts_elastic_settings *set,
     conn->username = ns->owner ? ns->owner->username : "-";
     if (http_url->user != NULL)
     {
-        conn->es_username = http_url->user;
+        conn->es_username = i_strdup(http_url->user);
     }
-    if (http_url->user != NULL)
+    if (http_url->password != NULL)
     {
-        conn->es_password = http_url->password;
+        conn->es_password = i_strdup(http_url->password);
     }
+
 
 #if defined(DOVECOT_PREREQ) && DOVECOT_PREREQ(2, 3)
     conn->http_host = i_strdup(http_url->host.name);
@@ -293,10 +294,13 @@ int elastic_connection_post(struct elastic_connection *conn,
     http_req = http_client_request(elastic_http_client, method, conn->http_host,
                                    path, elastic_connection_http_response, conn);
 
+    
     http_client_request_set_port(http_req, conn->http_port);
     http_client_request_set_ssl(http_req, conn->http_ssl);
     /* XXX: should be application/x-ndjson for bulk updates, but why when this works? */
-
+    if(conn->es_username != NULL && conn->es_password != NULL){
+	http_client_request_set_auth_simple(http_req, conn->es_username, conn->es_password);
+    }
     http_client_request_add_header(http_req, "Content-Type", "application/json");
 
     post_payload = i_stream_create_from_buffer(data);
