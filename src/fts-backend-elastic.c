@@ -197,6 +197,7 @@ fts_backend_elastic_bulk_end(struct elastic_fts_backend_update_context *_ctx)
     {
         return;
     }
+    /*
     if(ctx->prev_box != NULL) {
             struct elastic_fts_field *t_field;
             t_field = i_new(struct elastic_fts_field, 1);
@@ -209,6 +210,7 @@ fts_backend_elastic_bulk_end(struct elastic_fts_backend_update_context *_ctx)
             buffer_set_used_size(name, 0);
             //buffer_set_used_size(t_field->value, 0);
     }
+    */
     array_foreach(&ctx->fields, field)
     {
         if (str_len(field->value) > 0)
@@ -340,7 +342,7 @@ fts_backend_elastic_get_last_uid(struct fts_backend *_backend,
 
     if (ret < 0)
         return -1;
-
+    
     fts_index_set_last_uid(box, *last_uid_r);
     FUNC_END();
     return 0;
@@ -444,6 +446,7 @@ fts_backend_elastic_update_set_mailbox(struct fts_backend_update_context *_ctx,
             i_debug("fts_elastic: update_set_mailbox: fts_mailbox_get_guid failed");
             _ctx->failed = TRUE;
         }
+	/*
         if (box->name != NULL)
         {
             struct elastic_fts_field *field;
@@ -454,8 +457,8 @@ fts_backend_elastic_update_set_mailbox(struct fts_backend_update_context *_ctx,
             field->value = str_new(default_pool, 20);
             str_append(field->value, box->name);
             array_append(&ctx->fields, field, 1);
-  
         }
+	*/
         i_assert(strlen(box_guid) == sizeof(ctx->box_guid) - 1);
         memcpy(ctx->box_guid, box_guid, sizeof(ctx->box_guid) - 1);
     }
@@ -504,6 +507,8 @@ fts_backend_elastic_bulk_start(struct elastic_fts_backend_update_context *_ctx,
                                const char *action_name)
 {
     FUNC_START();
+    struct fts_backend_update_context *xctx =
+        (struct fts_backend_update_context *)_ctx;
     struct elastic_fts_backend_update_context *ctx =
         (struct elastic_fts_backend_update_context *)_ctx;
 
@@ -512,7 +517,6 @@ fts_backend_elastic_bulk_start(struct elastic_fts_backend_update_context *_ctx,
     char *test = ctx->json_request;
     str_printfa(ctx->json_request, "{\"%s\":{\"_id\":\"%u/%s/%s\"}}\n",
                 action_name, ctx->uid, ctx->box_guid, ctx->username);
-
     /* track that we've added documents */
     ctx->documents_added = TRUE;
 
@@ -523,10 +527,13 @@ fts_backend_elastic_bulk_start(struct elastic_fts_backend_update_context *_ctx,
         str_printfa(ctx->json_request,
                     "{\"uid\":%d,"
                     "\"box\":\"%s\","
-                    "\"user\":\"%s\"",
+                    "\"user\":\"%s\","
+		    "\"mailbox_name\":\"%s\"",
                     ctx->uid,
                     ctx->box_guid,
-                    ctx->username);
+                    ctx->username,
+		    xctx->cur_box->name);
+        //}
     }
     FUNC_END();
 }
