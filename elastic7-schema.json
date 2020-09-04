@@ -116,6 +116,15 @@
         "type": "date",
         "format": "[EEE, ][ ]d MMM yyyy HH:mm:ss[ Z][ (z)]"
       },
+      "x-mailer": {
+	"type": "text"
+      },
+      "delivered-to": {
+	"type": "text"
+      },
+      "return-path": {
+      	"type": "text"
+      },
       "from": {
         "type": "text",
         "analyzer": "email",

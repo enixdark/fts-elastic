@@ -588,6 +588,10 @@ fts_backend_elastic_header_want(const char *name)
            strcasecmp(name, "mailbox_name") == 0 ||
            strcasecmp(name, "size") == 0 ||
            strcasecmp(name, "vsize") == 0 ||
+	   strcasecmp(name, "Return-Path") == 0 ||
+	   strcasecmp(name, "X-Mailer") == 0 ||
+	   strcasecmp(name, "Delivered-To") == 0 ||
+	   strcasecmp(name, "Return-Path") == 0 ||
            strcasecmp(name, "is_attachment") == 0;
 }
 
@@ -609,6 +613,8 @@ fts_backend_elastic_update_set_build_key(struct fts_backend_update_context *_ctx
     {
         fts_backend_elastic_uid_changed(_ctx, key->uid);
     }
+
+    i_debug("\n DSADSSDSDASDSAASS %s", key->hdr_name);
 
     switch (key->type)
     {

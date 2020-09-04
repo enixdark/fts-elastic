@@ -71,6 +71,15 @@
         "vsize": {
           "type": "integer"
         },
+        "x-mailer": {
+          "type": "text"
+        },
+        "delivered-to": {
+          "type": "text"
+        },
+        "return-path": {
+          "type": "text"
+        },
         "date": {
           "type": "date",
           "format": "EEE, d MMM yyyy HH:mm:ss Z||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd"
