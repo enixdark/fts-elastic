@@ -194,6 +194,10 @@
             "analyzer": "email_address"
           }
         }
+      },
+      "updated_date": {
+        "type": "date",
+        "format": "EEE, d MMM yyyy HH:mm:ss Z||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd"
       }
     }
   }
