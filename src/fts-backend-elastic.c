@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <regex.h>
+//#include <stdbool.h>
 
 #include "lib.h"
 #include "array.h"
@@ -63,6 +64,45 @@ struct elastic_fts_backend_update_context
     unsigned int documents_added : 1;
     unsigned int expunges : 1;
 };
+
+static char* str_replace(char* string, const char* substr, const char* replacement) {
+	char* tok = NULL;
+	char* newstr = NULL;
+	char* oldstr = NULL;
+	int   oldstr_len = 0;
+	int   substr_len = 0;
+	int   replacement_len = 0;
+
+	newstr = strdup(string);
+	substr_len = strlen(substr);
+	replacement_len = strlen(replacement);
+
+	if (substr == NULL || replacement == NULL) {
+		return newstr;
+	}
+
+	while ((tok = strstr(newstr, substr))) {
+		oldstr = newstr;
+		oldstr_len = strlen(oldstr);
+		newstr = (char*)malloc(sizeof(char) * (oldstr_len - substr_len + replacement_len + 1));
+
+		if (newstr == NULL) {
+			free(oldstr);
+			return NULL;
+		}
+
+		memcpy(newstr, oldstr, tok - oldstr);
+		memcpy(newstr + (tok - oldstr), replacement, replacement_len);
+		memcpy(newstr + (tok - oldstr) + replacement_len, tok + substr_len, oldstr_len - substr_len - (tok - oldstr));
+		memset(newstr + oldstr_len - substr_len + replacement_len, 0, 1);
+
+		free(oldstr);
+	}
+
+	free(string);
+
+	return newstr;
+} 
 
 static const char *elastic_field_prepare(const char *field)
 {
@@ -185,19 +225,22 @@ fts_backend_elastic_deinit(struct fts_backend *_backend)
 }
 
 static void
-fts_backend_elastic_bulk_end(struct elastic_fts_backend_update_context *_ctx)
+fts_backend_elastic_bulk_start(struct elastic_fts_backend_update_context *_ctx,
+                               const char *action_name)
 {
     FUNC_START();
     struct elastic_fts_backend_update_context *ctx =
         (struct elastic_fts_backend_update_context *)_ctx;
-    const struct elastic_fts_field *field;
 
-    /* ensure we have a context */
-    if (_ctx == NULL)
-    {
-        return;
-    }
-    /*
+    /* add the header that starts the bulk transaction */
+    /* _id consists of uid/box_guid/user */
+    char *test = ctx->json_request;
+    str_printfa(ctx->json_request, "{\"%s\":{\"_id\":\"%u/%s/%s\"}}\n",
+                action_name, ctx->uid, ctx->box_guid, ctx->username);
+
+    /* track that we've added documents */
+    ctx->documents_added = TRUE;
+
     if(ctx->prev_box != NULL) {
             struct elastic_fts_field *t_field;
             t_field = i_new(struct elastic_fts_field, 1);
@@ -209,26 +252,75 @@ fts_backend_elastic_bulk_end(struct elastic_fts_backend_update_context *_ctx)
             array_append(&ctx->fields, t_field, 1);
             buffer_set_used_size(name, 0);
             //buffer_set_used_size(t_field->value, 0);
+    } 
+
+
+    /* expunges don't need anything more than the action line */
+    if (!ctx->expunges)
+    {
+        /* add first fields; these are static on every message. */
+        str_printfa(ctx->json_request,
+                    "{\"uid\":%d,"
+                    "\"box\":\"%s\","
+                    "\"user\":\"%s\"",
+                    ctx->uid,
+                    ctx->box_guid,
+                    ctx->username);
     }
-    */
+    FUNC_END();
+}
+
+static void
+fts_backend_elastic_bulk_end(struct elastic_fts_backend_update_context *_ctx)
+{
+    FUNC_START();
+    struct elastic_fts_backend_update_context *ctx =
+        (struct elastic_fts_backend_update_context *)_ctx;
+    const struct elastic_fts_field *field;
+    const struct elastic_fts_field *field_exist;
+    /* ensure we have a context */
+    if (_ctx == NULL)
+    {
+        return;
+    }
+
     array_foreach(&ctx->fields, field)
     {
+        
+        //if (str_len(field->value) > 0 && strstr(ctx->json_request->data, "mailbox_name") == NULL)
         if (str_len(field->value) > 0)
         {
             str_append(ctx->json_request, ",\"");
             str_append(ctx->json_request, field->key);
             str_append(ctx->json_request, "\":\"");
-            str_append_json_escaped(ctx->json_request,
-                                    str_c(field->value), str_len(field->value));
+           
+            if(strcmp(field->key,"received") == 0){
+                // skip field to avoid parse error
+            } else if(strcmp(field->key,"date") == 0){
+                struct elastic_fts_field *t_field;
+                t_field = i_new(struct elastic_fts_field, 1);
+                t_field->key = field->key;
+                t_field->value = str_new(default_pool, 256);
+                char* x = malloc(strlen(str_c(field->value)) + 1); 
+                strcpy(x, str_c(field->value));
+                char* y = str_replace(x, " (+07)", "");
+                str_append(t_field->value, y);
+                str_append_json_escaped(ctx->json_request,
+                           str_c(t_field->value), str_len(t_field->value));
+
+            } else {
+            
+                str_append_json_escaped(ctx->json_request,
+                                                str_c(field->value), str_len(field->value));
+            }
             str_append(ctx->json_request, "\"");
             /* keys are reused in following bulk items */
+            //buffer_set_used_size(field->key, 0);
             buffer_set_used_size(field->value, 0);
         }
     }
 
-    /* close up this line in the bulk request */
     str_append(ctx->json_request, "}\n");
-
     /* clean-up for the next message */
     buffer_set_used_size(ctx->current_key, 0);
     buffer_set_used_size(ctx->current_value, 0);
@@ -342,7 +434,6 @@ fts_backend_elastic_get_last_uid(struct fts_backend *_backend,
 
     if (ret < 0)
         return -1;
-    
     fts_index_set_last_uid(box, *last_uid_r);
     FUNC_END();
     return 0;
@@ -436,6 +527,7 @@ fts_backend_elastic_update_set_mailbox(struct fts_backend_update_context *_ctx,
     if (ctx->uid != 0)
     {
         fts_index_set_last_uid(ctx->prev_box, ctx->uid);
+        ctx->prev_box = box;
         ctx->uid = 0;
     }
 
@@ -446,7 +538,7 @@ fts_backend_elastic_update_set_mailbox(struct fts_backend_update_context *_ctx,
             i_debug("fts_elastic: update_set_mailbox: fts_mailbox_get_guid failed");
             _ctx->failed = TRUE;
         }
-	/*
+        /* 
         if (box->name != NULL)
         {
             struct elastic_fts_field *field;
@@ -458,7 +550,7 @@ fts_backend_elastic_update_set_mailbox(struct fts_backend_update_context *_ctx,
             str_append(field->value, box->name);
             array_append(&ctx->fields, field, 1);
         }
-	*/
+        */
         i_assert(strlen(box_guid) == sizeof(ctx->box_guid) - 1);
         memcpy(ctx->box_guid, box_guid, sizeof(ctx->box_guid) - 1);
     }
@@ -503,42 +595,6 @@ elastic_add_update_field(struct elastic_fts_backend_update_context *ctx)
 }
 
 static void
-fts_backend_elastic_bulk_start(struct elastic_fts_backend_update_context *_ctx,
-                               const char *action_name)
-{
-    FUNC_START();
-    struct fts_backend_update_context *xctx =
-        (struct fts_backend_update_context *)_ctx;
-    struct elastic_fts_backend_update_context *ctx =
-        (struct elastic_fts_backend_update_context *)_ctx;
-
-    /* add the header that starts the bulk transaction */
-    /* _id consists of uid/box_guid/user */
-    char *test = ctx->json_request;
-    str_printfa(ctx->json_request, "{\"%s\":{\"_id\":\"%u/%s/%s\"}}\n",
-                action_name, ctx->uid, ctx->box_guid, ctx->username);
-    /* track that we've added documents */
-    ctx->documents_added = TRUE;
-
-    /* expunges don't need anything more than the action line */
-    if (!ctx->expunges)
-    {
-        /* add first fields; these are static on every message. */
-        str_printfa(ctx->json_request,
-                    "{\"uid\":%d,"
-                    "\"box\":\"%s\","
-                    "\"user\":\"%s\","
-		    "\"mailbox_name\":\"%s\"",
-                    ctx->uid,
-                    ctx->box_guid,
-                    ctx->username,
-		    xctx->cur_box->name);
-        //}
-    }
-    FUNC_END();
-}
-
-static void
 fts_backend_elastic_uid_changed(struct fts_backend_update_context *_ctx,
                                 uint32_t uid)
 {
@@ -549,6 +605,7 @@ fts_backend_elastic_uid_changed(struct fts_backend_update_context *_ctx,
         (struct elastic_fts_backend *)_ctx->backend;
     struct fts_elastic_user *fuser =
         FTS_ELASTIC_USER_CONTEXT(_ctx->backend->ns->user);
+
     if (ctx->documents_added)
     {
         /* this is the end of an old message. nb: the last message to be indexed
@@ -557,17 +614,18 @@ fts_backend_elastic_uid_changed(struct fts_backend_update_context *_ctx,
     }
 
     /* chunk up our requests in to reasonable sizes */
-    if (str_len(ctx->json_request) > fuser->set.bulk_size)
-    {
+    //if (str_len(ctx->json_request) > fuser->set.bulk_size)
+    //{
+        //i_error("\n SET BULK SIZE");
         /* do an early post */
-        elastic_connection_bulk(backend->conn, ctx->json_request);
+    elastic_connection_bulk(backend->conn, ctx->json_request);
+
 
         /* reset our tracking variables */
-        buffer_set_used_size(ctx->json_request, 0);
-    }
+    buffer_set_used_size(ctx->json_request, 0);
+    //}
 
     ctx->uid = uid;
-
     fts_backend_elastic_bulk_start(ctx, "index");
     FUNC_END();
 }
@@ -584,8 +642,8 @@ fts_backend_elastic_header_want(const char *name)
            strcasecmp(name, "Subject") == 0 ||
            strcasecmp(name, "Sender") == 0 ||
            strcasecmp(name, "Message-ID") == 0 ||
-           strcasecmp(name, "Received") == 0 ||
            strcasecmp(name, "mailbox_name") == 0 ||
+           strcasecmp(name, "Received") == 0 ||
            strcasecmp(name, "size") == 0 ||
            strcasecmp(name, "vsize") == 0 ||
 	   strcasecmp(name, "Return-Path") == 0 ||
@@ -607,14 +665,12 @@ fts_backend_elastic_update_set_build_key(struct fts_backend_update_context *_ctx
     {
         return FALSE;
     }
-
     /* if the uid doesn't match our expected one, we've moved on to a new message */
     if (key->uid != ctx->uid)
     {
-        fts_backend_elastic_uid_changed(_ctx, key->uid);
-    }
+    fts_backend_elastic_uid_changed(_ctx, key->uid);
 
-    i_debug("\n DSADSSDSDASDSAASS %s", key->hdr_name);
+    }
 
     switch (key->type)
     {
@@ -653,8 +709,16 @@ fts_backend_elastic_update_build_more(struct fts_backend_update_context *_ctx,
     regex_t regex;
     int status;
     status = regcomp(&regex, "attachment", 0);  
+    struct elastic_fts_field *t_field = NULL;
+    int exists = 0;
     
-    if (status == 0 && data != NULL)
+    array_foreach(&ctx->fields, t_field){
+        if (strcmp(t_field->key,"is_attachment") == 0){
+            exists = 1;
+            break;
+        }
+    }
+    if (status == 0 && data != NULL && exists == 0)
     {
         
         struct elastic_fts_field *field;
@@ -663,8 +727,8 @@ fts_backend_elastic_update_build_more(struct fts_backend_update_context *_ctx,
         {
             if (strcmp(field->key,"is_attachment") == 0)
             {
-		status = 1;
-		break;
+		        status = 1;
+		        break;
             }
         }
         if (status == 0)

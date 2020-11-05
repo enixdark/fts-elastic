@@ -1,4 +1,3 @@
-/* Copyright (c) 2006-2014 Dovecot authors, see the included COPYING file */
 /* Copyright (c) 2014 Joshua Atkins <josh@ascendantcom.com> */
 /* Copyright (c) 2019-2020 Filip Hanes <filip.hanes@gmail.com> */
 
@@ -149,6 +148,7 @@ elastic_connection_bulk_response(const struct http_response *response,
                                  struct elastic_connection *conn)
 {
     FUNC_START();
+    
     if (response != NULL && conn != NULL)
     {
         /* 200 OK, 204 continue */
@@ -224,6 +224,7 @@ elastic_connection_search_response(const struct http_response *response,
     /* 404's usually mean the index is missing.
      * it could mean you also hit a non-ES service
      * 400 means request json is malformed */
+
     if (response->status / 100 != 2)
     {
         i_error("fts_elastic: search failed: %d %s",
@@ -253,6 +254,21 @@ elastic_connection_http_response(const struct http_response *response,
                                  struct elastic_connection *conn)
 {
     FUNC_START();
+    /* 
+    if(response != NULL && response->payload != NULL){
+        //i_stream_set_return_partial_line(response->payload, TRUE);
+        //char *x = i_stream_read_next_line(response->payload);
+        //i_stream_ref(response->payload);
+        const unsigned char *data = NULL;
+        size_t size;
+        int ret = -1;
+        while ((ret = i_stream_read_data(conn->payload, &data, &size, 0)) > 0){
+            i_error("\n RESPONSE %s", data);
+        }
+    }
+    */
+
+
     if (response != NULL && conn != NULL)
     {
         switch (conn->post_type)
@@ -266,7 +282,6 @@ elastic_connection_http_response(const struct http_response *response,
         case ELASTIC_POST_TYPE_REFRESH:
         case ELASTIC_POST_TYPE_DELETE:
         case ELASTIC_POST_TYPE_DELETE_BY_QUERY:
-            /* not implemented */
             break;
         }
     }
@@ -279,6 +294,9 @@ int elastic_connection_post(struct elastic_connection *conn,
 {
     FUNC_START();
     struct http_client_request *http_req = NULL;
+    
+    struct http_response http_res;
+
     struct istream *post_payload = NULL;
     const char *method = "POST";
     if (conn == NULL || path == NULL || data == NULL)
@@ -299,7 +317,7 @@ int elastic_connection_post(struct elastic_connection *conn,
     http_client_request_set_ssl(http_req, conn->http_ssl);
     /* XXX: should be application/x-ndjson for bulk updates, but why when this works? */
     if(conn->es_username != NULL && conn->es_password != NULL){
-	http_client_request_set_auth_simple(http_req, conn->es_username, conn->es_password);
+	    http_client_request_set_auth_simple(http_req, conn->es_username, conn->es_password);
     }
     http_client_request_add_header(http_req, "Content-Type", "application/json");
 
@@ -308,10 +326,12 @@ int elastic_connection_post(struct elastic_connection *conn,
     i_stream_unref(&post_payload);
     http_client_request_submit(http_req);
 
+    //int x = http_client_request_callback(http_req, &http_res);
     conn->request_status = 0;
     http_client_wait(elastic_http_client);
 
     FUNC_END_RET_INT(conn->request_status);
+    //i_error("\n STATUS %d", conn->request_status);
     return conn->request_status;
 }
 
@@ -471,6 +491,12 @@ int elastic_connection_bulk(struct elastic_connection *conn, string_t *cmd)
                        conn->username,
                        conn->refresh_on_update ? "&refresh=true" : "",
                        NULL);
+    //i_error("\n TEST: %s", cmd->data);
+    //i_error("\n PATH ============== %s", path);
+    //i_error("\n TEST ----------- %s", cmd->data);
+
+
+    //i_error("\n\n\n");
     elastic_connection_post(conn, path, cmd);
     FUNC_END();
     return conn->request_status;

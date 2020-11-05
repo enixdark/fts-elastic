@@ -63,7 +63,7 @@
           "type": "boolean"
         },
         "mailbox_name": {
-          "type": "text"
+          "type": "keyword"
         },
         "size": {
           "type": "integer"
@@ -80,9 +80,12 @@
         "return-path": {
           "type": "text"
         },
-        "date": {
+        "created_date": {
           "type": "date",
           "format": "EEE, d MMM yyyy HH:mm:ss Z||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd"
+        },
+        "date": {
+          "type": "keyword",
         },
         "updated_date": {
           "type": "date",
