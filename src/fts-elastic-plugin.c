@@ -14,6 +14,7 @@
 #include "fts-elastic-plugin.h"
 #include "fts-storage.h"
 #include <stdlib.h>
+#include <locale.h>
 
 #define VIRTUAL_STORAGE_NAME "virtual"
 
@@ -29,6 +30,8 @@ fts_elastic_plugin_init_settings(struct mail_user *user,
                                  const char *str)
 {
     FUNC_START();
+    setlocale(LC_ALL, "");
+
     i_debug("fts_elastic_plugin_init_settings");
     const char *const *tmp;
 

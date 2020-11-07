@@ -1,4 +1,3 @@
-/* Copyright (c) 2014 Joshua Atkins <josh@ascendantcom.com> */
 /* Copyright (c) 2019-2020 Filip Hanes <filip.hanes@gmail.com> */
 
 #include "lib.h"
@@ -17,6 +16,7 @@
 
 #include <json-c/json.h>
 #include <stdio.h>
+#include <regex.h>
 
 struct elastic_search_context
 {
@@ -110,7 +110,7 @@ int elastic_connection_init(const struct fts_elastic_settings *set,
     if (elastic_http_client == NULL)
     {
         i_zero(&http_set);
-        http_set.max_idle_time_msecs = 5 * 1000;
+        http_set.max_idle_time_msecs = 30 * 1000;
         http_set.max_parallel_connections = 1;
         http_set.max_pipelined_requests = 1;
         http_set.max_redirects = 1;
@@ -148,13 +148,15 @@ elastic_connection_bulk_response(const struct http_response *response,
                                  struct elastic_connection *conn)
 {
     FUNC_START();
-    
+     
     if (response != NULL && conn != NULL)
     {
+        
         /* 200 OK, 204 continue */
         if (response->status / 100 != 2)
         {
-            i_error("fts_elastic: Indexing failed: %s", response->reason);
+            //disable for reduce error when body empty
+            //i_error("fts_elastic: Indexing failed: %s", response->reason);
             conn->request_status = -1;
         }
     }
@@ -254,21 +256,18 @@ elastic_connection_http_response(const struct http_response *response,
                                  struct elastic_connection *conn)
 {
     FUNC_START();
-    /* 
-    if(response != NULL && response->payload != NULL){
-        //i_stream_set_return_partial_line(response->payload, TRUE);
-        //char *x = i_stream_read_next_line(response->payload);
-        //i_stream_ref(response->payload);
-        const unsigned char *data = NULL;
-        size_t size;
-        int ret = -1;
-        while ((ret = i_stream_read_data(conn->payload, &data, &size, 0)) > 0){
+
+    const unsigned char *data = NULL;
+    size_t size;
+    int ret = -1;
+    // log error response 
+    while ((ret = i_stream_read_data(response->payload, &data, &size, 0)) > 0){
+        if(response->reason != NULL && strstr(data, "\"errors\":true") != NULL){ 
             i_error("\n RESPONSE %s", data);
+            conn->request_status = -1;
         }
+		break;
     }
-    */
-
-
     if (response != NULL && conn != NULL)
     {
         switch (conn->post_type)
@@ -293,6 +292,7 @@ int elastic_connection_post(struct elastic_connection *conn,
                             const char *path, string_t *data)
 {
     FUNC_START();
+    
     struct http_client_request *http_req = NULL;
     
     struct http_response http_res;
@@ -319,7 +319,7 @@ int elastic_connection_post(struct elastic_connection *conn,
     if(conn->es_username != NULL && conn->es_password != NULL){
 	    http_client_request_set_auth_simple(http_req, conn->es_username, conn->es_password);
     }
-    http_client_request_add_header(http_req, "Content-Type", "application/json");
+    http_client_request_add_header(http_req, "Content-Type", "application/json;charset=UTF-8");
 
     post_payload = i_stream_create_from_buffer(data);
     http_client_request_set_payload(http_req, post_payload, TRUE);
@@ -329,9 +329,10 @@ int elastic_connection_post(struct elastic_connection *conn,
     //int x = http_client_request_callback(http_req, &http_res);
     conn->request_status = 0;
     http_client_wait(elastic_http_client);
-
+    if(conn->request_status == -1){
+        i_error("\n ERROR DATA %s", str_c(data));
+    }
     FUNC_END_RET_INT(conn->request_status);
-    //i_error("\n STATUS %d", conn->request_status);
     return conn->request_status;
 }
 
@@ -491,12 +492,8 @@ int elastic_connection_bulk(struct elastic_connection *conn, string_t *cmd)
                        conn->username,
                        conn->refresh_on_update ? "&refresh=true" : "",
                        NULL);
-    //i_error("\n TEST: %s", cmd->data);
-    //i_error("\n PATH ============== %s", path);
-    //i_error("\n TEST ----------- %s", cmd->data);
-
-
-    //i_error("\n\n\n");
+ 
+    
     elastic_connection_post(conn, path, cmd);
     FUNC_END();
     return conn->request_status;

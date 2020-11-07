@@ -65,6 +65,148 @@ struct elastic_fts_backend_update_context
     unsigned int expunges : 1;
 };
 
+
+static int utf8_encode(char *out, uint32_t utf)
+{
+  if (utf <= 0x7F) {
+    // Plain ASCII
+    out[0] = (char) utf;
+    out[1] = 0;
+    return 1;
+  }
+  else if (utf <= 0x07FF) {
+    // 2-byte unicode
+    out[0] = (char) (((utf >> 6) & 0x1F) | 0xC0);
+    out[1] = (char) (((utf >> 0) & 0x3F) | 0x80);
+    out[2] = 0;
+    return 2;
+  }
+  else if (utf <= 0xFFFF) {
+    // 3-byte unicode
+    out[0] = (char) (((utf >> 12) & 0x0F) | 0xE0);
+    out[1] = (char) (((utf >>  6) & 0x3F) | 0x80);
+    out[2] = (char) (((utf >>  0) & 0x3F) | 0x80);
+    out[3] = 0;
+    return 3;
+  }
+  else if (utf <= 0x10FFFF) {
+    // 4-byte unicode
+    out[0] = (char) (((utf >> 18) & 0x07) | 0xF0);
+    out[1] = (char) (((utf >> 12) & 0x3F) | 0x80);
+    out[2] = (char) (((utf >>  6) & 0x3F) | 0x80);
+    out[3] = (char) (((utf >>  0) & 0x3F) | 0x80);
+    out[4] = 0;
+    return 4;
+  }
+  else { 
+    // error - use replacement character
+    out[0] = (char) 0xEF;  
+    out[1] = (char) 0xBF;
+    out[2] = (char) 0xBD;
+    out[3] = 0;
+    return 0;
+  }
+} 
+
+static int convert(unsigned char* out, int outlen, unsigned short* in, int inlen)
+{
+    unsigned char* outstart= out;
+    unsigned char* outend= out+outlen;
+    unsigned short* inend= in+inlen;
+    unsigned int c, d;
+    int bits;
+
+    while (in < inend) {
+        c= *in++;
+        if ((c & 0xFC00) == 0xD800) {    /* surrogates */
+            if ((in<inend) && (((d=*in++) & 0xFC00) == 0xDC00)) {
+                c &= 0x03FF;
+                c <<= 10;
+                c |= d & 0x03FF;
+                c += 0x10000;
+            }
+            else  return -1;
+        }
+
+      /* assertion: c is a single UTF-4 value */
+
+        if (out >= outend)  return -1;
+        if      (c <    0x80) {  *out++=  c;                bits= -6; }
+        else if (c <   0x800) {  *out++= (c >>  6) | 0xC0;  bits=  0; }
+        else if (c < 0x10000) {  *out++= (c >> 12) | 0xE0;  bits=  6; }
+        else                  {  *out++= (c >> 18) | 0xF0;  bits= 12; }
+ 
+        for ( ; bits > 0; bits-= 6) {
+            if (out >= outend)  return -1;
+            *out++= (c >> bits) & 0x3F;
+        }
+    }
+    return out-outstart;
+}
+
+static char* utf16_to_utf8 (const wchar_t *src)
+{
+    size_t len = wcslen(src), si, di;
+
+    char *dst = (char*)malloc(sizeof(*dst)*(3*len+1));
+
+    if (dst == NULL)
+		return dst;
+
+    for (di = si = 0; si < len; si++)
+    {
+        unsigned c0 = src[si];
+
+        if (c0 < 0x80)
+        {
+            /*Can be represented by a 1-byte sequence.*/
+            dst[di++] = (char)c0;
+            continue;
+        }
+        else if (c0 < 0x800)
+        {
+            /*Can be represented by a 2-byte sequence.*/
+            dst[di++] = (char)(0xC0|c0>>6);
+            dst[di++] = (char)(0x80|c0&0x3F);
+            continue;
+        }
+        else if (c0 >= 0xD800 && c0 < 0xDC00)
+        {
+        	/*This is safe, because c0 was not 0 and src is NUL-terminated.*/
+            unsigned c1 = src[si+1];
+
+            if (c1 >= 0xDC00 && c1 < 0xE000)
+            {
+            	/*Surrogate pair.*/
+                unsigned w = ((c0&0x3FF)<<10|c1&0x3FF)+0x10000;
+
+                /*Can be represented by a 4-byte sequence.*/
+                dst[di++] = (char)(0xF0|w>>18);
+                dst[di++] = (char)(0x80|w>>12&0x3F);
+                dst[di++] = (char)(0x80|w>>6&0x3F);
+                dst[di++] = (char)(0x80|w&0x3F);
+                si++;
+                continue;
+            }
+        }
+
+        /*Anything else is either a valid 3-byte sequence, an invalid surrogate
+           pair, or 'not a character'.
+          In the latter two cases, we just encode the value as a 3-byte
+           sequence anyway (producing technically invalid UTF-8).
+          Later error handling will detect the problem, with a better
+           chance of giving a useful error message.*/
+
+        dst[di++] = (char)(0xE0|c0>>12);
+        dst[di++] = (char)(0x80|c0>>6&0x3F);
+        dst[di++] = (char)(0x80|c0&0x3F);
+    }
+
+    dst[di++] = '\0';
+    return dst;
+}
+
+
 static char* str_replace(char* string, const char* substr, const char* replacement) {
 	char* tok = NULL;
 	char* newstr = NULL;
@@ -175,10 +317,73 @@ static void str_append_json_escaped(string_t *dest, const char *data, size_t len
             }
         }
     }
+
     if (start < pos)
         buffer_append(dest, data + start, pos - start);
     FUNC_END();
 }
+
+static void str_append_json_escaped_test(string_t *dest, const char *data, size_t len)
+{
+    FUNC_START();
+    //i_error("escaping \"%s\" with size %zu", data, len);
+    size_t pos = 0, start = 0;
+    unsigned char c;
+
+    while (len--)
+    {
+        c = data[pos];
+        switch (c)
+        {
+        case '\n':
+        case '\r':
+        case '\t':
+        case '"':
+        case '\f':
+        case '\\':
+        case '\b':
+            if (start < pos)
+                buffer_append(dest, data + start, pos - start);
+
+            if (c == '\n')
+                str_append(dest, "\\n");
+            else if (c == '\r')
+                str_append(dest, "\\r");
+            else if (c == '\t')
+                str_append(dest, "\\t");
+            else if (c == '"')
+                str_append(dest, "\\\"");
+            else if (c == '\f')
+                str_append(dest, "\\f");
+            else if (c == '\\')
+                str_append(dest, "\\\\");
+            else if (c == '\b')
+                str_append(dest, "\\b");
+
+            start = ++pos;
+            break;
+        default:
+            if (c < ' ')
+            {
+                if (start < pos)
+                    buffer_append(dest, data + start, pos - start);
+
+                str_printfa(dest, "\\u00%c%c",
+                            escape_hex_chars[c >> 4],
+                            escape_hex_chars[c & 0xf]);
+
+                start = ++pos;
+            }
+            else
+            {
+                pos++;
+            }
+        }
+    }
+
+    FUNC_END();
+}
+
 
 static struct fts_backend *fts_backend_elastic_alloc(void)
 {
@@ -293,8 +498,8 @@ fts_backend_elastic_bulk_end(struct elastic_fts_backend_update_context *_ctx)
             str_append(ctx->json_request, ",\"");
             str_append(ctx->json_request, field->key);
             str_append(ctx->json_request, "\":\"");
-           
-            if(strcmp(field->key,"received") == 0){
+            
+            if (strcmp(field->key,"received") == 0){
                 // skip field to avoid parse error
             } else if(strcmp(field->key,"date") == 0){
                 struct elastic_fts_field *t_field;
@@ -307,9 +512,7 @@ fts_backend_elastic_bulk_end(struct elastic_fts_backend_update_context *_ctx)
                 str_append(t_field->value, y);
                 str_append_json_escaped(ctx->json_request,
                            str_c(t_field->value), str_len(t_field->value));
-
             } else {
-            
                 str_append_json_escaped(ctx->json_request,
                                                 str_c(field->value), str_len(field->value));
             }
@@ -496,9 +699,9 @@ fts_backend_elastic_update_deinit(struct fts_backend_update_context *_ctx)
     }
 
     /* perform the actual post */
-    if (ctx->documents_added)
-        elastic_connection_bulk(backend->conn, ctx->json_request);
-
+    if (ctx->documents_added) {
+       elastic_connection_bulk(backend->conn, ctx->json_request);
+    }
     /* global clean-up */
     str_free(&ctx->json_request);
     free(ctx);
@@ -527,7 +730,7 @@ fts_backend_elastic_update_set_mailbox(struct fts_backend_update_context *_ctx,
     if (ctx->uid != 0)
     {
         fts_index_set_last_uid(ctx->prev_box, ctx->uid);
-        ctx->prev_box = box;
+        //ctx->prev_box = box;
         ctx->uid = 0;
     }
 
@@ -605,6 +808,7 @@ fts_backend_elastic_uid_changed(struct fts_backend_update_context *_ctx,
         (struct elastic_fts_backend *)_ctx->backend;
     struct fts_elastic_user *fuser =
         FTS_ELASTIC_USER_CONTEXT(_ctx->backend->ns->user);
+
 
     if (ctx->documents_added)
     {
