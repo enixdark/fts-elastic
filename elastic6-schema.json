@@ -56,6 +56,9 @@
         "body": {
           "type": "text"
         },
+        "snippet": {
+          "type": "text"
+        },
         "message-id": {
           "type": "keyword"
         },

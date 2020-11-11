@@ -91,12 +91,16 @@
         "type": "text"
       },
       "thread_id": {
-	"type": "integer"
+	      "type": "integer"
       },
       "is_flag": {
       	"type": "boolean"
       },
       "body": {
+        "type": "text",
+        "analyzer": "body"
+      },
+      "snippet": {
         "type": "text",
         "analyzer": "body"
       },
