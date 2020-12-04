@@ -18,6 +18,31 @@
         }
       },
       "filter": {
+        "vietnam_stop": { 
+          "type": "stop",
+          "ignore_case": true,
+          "stopwords_path": "vietnamese-stopwords.txt"
+        },
+        "english_stop": { 
+          "type": "stop",
+          "ignore_case": true,
+          "stopwords_path": "english-stopwords.txt"
+        },
+        "korean_stop": { 
+          "type": "stop",
+          "ignore_case": true,
+          "stopwords_path": "korean-stopwords.txt" 
+        },
+        "japanese_stop": { 
+          "type": "stop",
+          "ignore_case": true,
+          "stopwords_path": "japanese-stopwords.txt"
+        },
+        "chinese_stop": { 
+          "type": "stop",
+          "ignore_case": true,
+          "stopwords_path": "chinese-stopwords.txt"
+        },
         "email": {
           "type": "pattern_capture",
           "preserve_original": true,
@@ -48,6 +73,10 @@
         }
       },
       "analyzer": {
+        "body_search": {
+          "tokenizer": "standard",
+          "filter": ["asciifolding", "lowercase", "unique", "max50char", "limit1000", "vietnam_stop", "english_stop", "korean_stop", "japanese_stop", "chinese_stop"]
+        },
         "body": {
           "tokenizer": "standard",
           "filter": ["asciifolding", "lowercase", "unique", "max50char", "limit1000"]
@@ -99,6 +128,10 @@
       "body": {
         "type": "text",
         "analyzer": "body"
+      },
+      "body_search": {
+        "type": "text",
+        "analyzer": "body_search"
       },
       "snippet": {
         "type": "text",
