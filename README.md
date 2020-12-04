@@ -134,3 +134,16 @@ curl -X POST "http://elasticIP:9200/m/_search?pretty" -H 'Content-Type: applicat
 ## Thanks
 This plugin borrows heavily from dovecot itself particularly for the automatic detection of dovecont-config (see m4/dovecot.m4). The fts-solr and fts-squat plugins were also used as reference material for understanding the Dovecot FTS API.
 FTS-lucene was used as reference for implementing proper rescan.
+
+
+## Install on CentOS 7
+
+```sh
+yum install -y dovecot-devel json-c-devel gcc make
+./autogen.sh
+./configure --with-dovecot=/usr/lib64/dovecot/
+make
+make install
+```
+
+
