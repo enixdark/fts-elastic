@@ -117,7 +117,7 @@
         "type": "keyword"
       },
       "date": {
-        "type": "text"
+        "type": "keyword"
       },
       "x-mailer": {
 	"type": "text"

@@ -33,16 +33,6 @@
           "ignore_case": true,
           "stopwords_path": "korean-stopwords.txt" 
         },
-        "japanese_stop": { 
-          "type": "stop",
-          "ignore_case": true,
-          "stopwords_path": "japanese-stopwords.txt"
-        },
-        "chinese_stop": { 
-          "type": "stop",
-          "ignore_case": true,
-          "stopwords_path": "chinese-stopwords.txt"
-        },
         "email": {
           "type": "pattern_capture",
           "preserve_original": true,
@@ -75,7 +65,7 @@
       "analyzer": {
         "body_search": {
           "tokenizer": "standard",
-          "filter": ["asciifolding", "lowercase", "unique", "max50char", "limit1000", "vietnam_stop", "english_stop", "korean_stop", "japanese_stop", "chinese_stop"]
+          "filter": ["vietnam_stop", "english_stop", "korean_stop", "lowercase", "asciifolding", "unique", "max50char", "limit1000"]
         },
         "body": {
           "tokenizer": "standard",
@@ -150,7 +140,7 @@
         "type": "keyword"
       },
       "date": {
-        "type": "text"
+        "type": "keyword"
       },
       "x-mailer": {
 	"type": "text"
