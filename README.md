@@ -157,8 +157,8 @@ wget https://raw.githubusercontent.com/trangnth/fts-elastic/trangnth/stopword/ch
 wget https://raw.githubusercontent.com/trangnth/fts-elastic/trangnth/stopword/japanese-stopwords.txt
 wget https://raw.githubusercontent.com/trangnth/fts-elastic/trangnth/stopword/korean-stopwords.txt
 
-curl -X PUT "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail_reindex?pretty" -H 'Content-Type: application/json' -d "@elastic7-schema-stopword.json"
-curl -X POST "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/_reindex?pretty&wait_for_completion=true" -H 'Content-Type: application/json' -d'
+curl -X PUT "http:// 10.5.70.73:9200/mail_reindex?pretty" -H 'Content-Type: application/json' -d "@elastic7-schema-stopword.json"
+curl -X POST "http:// 10.5.70.73:9200/_reindex?pretty&wait_for_completion=true" -H 'Content-Type: application/json' -d'
 {
   "source": {
     "index": "mail"
@@ -168,16 +168,16 @@ curl -X POST "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/_reindex?pre
   }
 }
 '
-curl -GET 'http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.10.70:9200/_cat/indices/*?v&s=index'
+curl -GET 'http:// 10.5.10.70:9200/_cat/indices/*?v&s=index'
 
-curl -X DELETE "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail?pretty"
+curl -X DELETE "http://10.5.70.73:9200/mail?pretty"
 
 * Make sure the source index is actually open
-curl -X POST "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail_reindex/_open" 
+curl -X POST "http:// 10.5.70.73:9200/mail_reindex/_open" 
 
 * Put the source index in read-only mode
 
-curl -X PUT "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail_reindex/_settings" -H 'Content-Type: application/json' -d'
+curl -X PUT "http:// 10.5.70.73:9200/mail_reindex/_settings" -H 'Content-Type: application/json' -d'
 {
   "settings": {
     "index.blocks.write": "true"
@@ -187,7 +187,7 @@ curl -X PUT "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail_reindex/
 
 Clone the source index to the target name, and set the target to read-write mode
 
-curl -X PUT "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail_reindex/_clone/mail" -H 'Content-Type: application/json' -d'
+curl -X PUT "http:// 10.5.70.73:9200/mail_reindex/_clone/mail" -H 'Content-Type: application/json' -d'
 {
   "settings": {
     "index.blocks.write": null 
@@ -195,21 +195,21 @@ curl -X PUT "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail_reindex/
 }
 '
 
-curl -X PUT "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail_reindex/_settings" -H 'Content-Type: application/json' -d'
+curl -X PUT "http:// 10.5.70.73:9200/mail_reindex/_settings" -H 'Content-Type: application/json' -d'
 {
   "settings": {
     "index.blocks.write": null
   }
 }
 '
-curl -X POST "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail/_analyze?pretty" -H 'Content-Type: application/json' -d'
+curl -X POST "http:// 10.5.70.73:9200/mail/_analyze?pretty" -H 'Content-Type: application/json' -d'
 {
   "analyzer": "body_search",
   "text": "thông_tin các server nginx proxy mới ạ"
 }
 '
 
-curl -X POST "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail_staging2/_analyze?pretty" -H 'Content-Type: application/json' -d'
+curl -X POST "http:// 10.5.70.73:9200/mail_staging2/_analyze?pretty" -H 'Content-Type: application/json' -d'
 {
   "analyzer": "body_search",
   "text": "Từng bước để trở thành lập trình viên giỏi a ha"
@@ -217,14 +217,14 @@ curl -X POST "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.70.73:9200/mail_staging
 '
 
 
-(venv) root@capt-ima50:/opt/script-flag-event# curl -X POST "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.10.70:9200/test_mail5/_analyze?pretty" -H 'Content-Type: application/json' -d'
+(venv) root@capt-ima50:/opt/script-flag-event# curl -X POST "http:// 10.5.10.70:9200/test_mail5/_analyze?pretty" -H 'Content-Type: application/json' -d'
 {
   "analyzer": "body_search",
   "text": "인생은 뿌린 대로 거두게 되어 있다"
 }
 '
 
-root@capt-ima50:/opt/script-flag-event# curl -X POST "http://admin:TlZRV1MzQk5NVldHV0NRPQo=@10.5.10.70:9200/test_mail5/_analyze?pretty" -H 'Content-Type: application/json' -d'
+root@capt-ima50:/opt/script-flag-event# curl -X POST "http:// 10.5.10.70:9200/test_mail5/_analyze?pretty" -H 'Content-Type: application/json' -d'
 {
   "analyzer": "body_search",
   "text": "Cuộc sống là gặt hái được những gì đã gieo trồng 인생은 뿌린 대로 거두게 되어 있다 Thái độ sống của bạn càng tích cực thì cuộc sống của bạn sẽ biến đổi càng tích cực. 인생에 대한 태도가 긍정적일수록, 여러분 인생이 긍정적으로 변할 것입니다. Bạn càng bất mãn, bạn sẽ càng đau khổ hơn. 여러분이 불평을 하면 할수록 여러분 자신이 비참해질 것이고요. Bất cứ khi nào gặp khó khăn, tôi luôn coi đó là cơ hội. 저는 문제가 생기면 항상 그것을 기회로 여깁니다. Cuộc sống là gặt hái được những gì đã gieo trồng 인생은 뿌린 대로 거두게 되어 있습니다. - Oprah Winfrey - 오프라 윈프리 Bạn càng tôn vinh cuộc sống, thì sẽ càng có nhiều thứ đáng chúc mừng trong cuộc đời bạn. 인생을 예찬하면 할수록 인생에서 축하할 거리는 더 많아집니다. Ngược lại, càng phàn nàn nhiều, càng cố gắng tìm kiếm những tiểu tiết, bạn sẽ tìm thấy càng nhiều sai lầm hoặc bất hạnh hơn. 반대로 불평하면 할수록, 그리고 티를 찾아내려면 할수록 잘못이나 불행을 더 많이 발견하게 됩니다. Lịch sử thế giới và cuộc sống được tạo nên theo những gì ta suy nghĩ và thực hiện chúng. 세상과 인생사는 내가 생각하고 실천하는 바 대로 만들어집니다."
