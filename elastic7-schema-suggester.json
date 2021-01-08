@@ -1,0 +1,252 @@
+{
+  "settings": {
+    "number_of_shards": 10,
+    "number_of_replicas": 0,
+    "max_shingle_diff":"5",
+    "analysis": {
+      "normalizer": {
+        "lowercase": {
+          "type": "custom",
+          "char_filter": [],
+          "filter": ["lowercase"]
+        }
+      },
+      "char_filter": {
+        "remove_email_address": {
+          "type": "pattern_replace",
+          "pattern": "(<[^>]*>)",
+          "replacement": " "
+        }
+      },
+      "filter": {
+        "vietnam_stop": { 
+          "type": "stop",
+          "ignore_case": true,
+          "stopwords_path": "vietnamese-stopwords.txt"
+        },
+        "english_stop": { 
+          "type": "stop",
+          "ignore_case": true,
+          "stopwords_path": "english-stopwords.txt"
+        },
+        "korean_stop": { 
+          "type": "stop",
+          "ignore_case": true,
+          "stopwords_path": "korean-stopwords.txt" 
+        },
+        "email": {
+          "type": "pattern_capture",
+          "preserve_original": true,
+          "max_token_length": 64,
+          "patterns": [
+            "([^@]+)",
+            "(\\p{L}+)",
+            "(\\d+)",
+            "@(.+)",
+            "([^-@]+)"
+          ]
+        },
+        "max50char": {
+          "type": "length",
+          "min": 2,
+          "max": 50
+        },
+        "limit1000": {
+          "type": "limit",
+          "max_token_count": 1000
+        }, 
+        "shingle_filter":{
+          "max_shingle_size":"5",
+          "min_shingle_size":"2",
+          "type":"shingle"
+       }
+      },
+      "tokenizer": {
+        "email_address": {
+          "type": "pattern",
+          "pattern": "<([^>]+)>",
+          "group": 1
+        }
+      },
+      "analyzer": {
+        "body_search": {
+          "tokenizer": "standard",
+          "filter": ["lowercase", "vietnam_stop", "english_stop", "korean_stop", "asciifolding", "unique", "max50char", "limit1000"]
+        },
+        "body": {
+          "tokenizer": "standard",
+          "filter": ["asciifolding", "lowercase", "unique", "max50char", "limit1000", "shingle_filter"],
+          "type": "custom"
+        },
+        "email": {
+          "tokenizer": "uax_url_email",
+          "filter": ["asciifolding", "email", "lowercase", "unique"]
+        },
+        "email_name": {
+          "tokenizer": "standard",
+          "filter": ["asciifolding", "lowercase", "unique"],
+          "char_filter": ["remove_email_address"]
+        },
+        "email_address": {
+          "tokenizer": "email_address",
+          "filter": ["email", "lowercase", "unique"]
+        },
+        "autocomplete":{
+          "filter": ["lowercase", "shingle_filter"],
+          "char_filter": ["html_strip"],
+          "type": "custom",
+          "tokenizer": "standard"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "_source": {
+      "enabled": true
+    },
+    "properties": {
+      "autocomplete":{
+        "type":"text",
+        "fielddata": "true",
+        "analyzer":"autocomplete"
+      },
+      "user": {
+        "type": "keyword",
+        "normalizer": "lowercase"
+      },
+      "box": {
+        "type": "keyword",
+        "normalizer": "lowercase"
+      },
+      "mailbox_name": {
+        "type": "keyword"
+      },
+      "uid": {
+        "type": "integer"
+      },
+      "subject": {
+        "type": "text",
+        "fielddata": "true",
+        "analyzer":"autocomplete" 
+      },
+      "thread_id": {
+	"type": "integer"
+      },
+      "is_flag": {
+      	"type": "boolean"
+      },
+      "body": {
+        "type": "text",
+        "fielddata": "true",
+        "analyzer": "body"
+      },
+      "body_search": {
+        "type": "text",
+        "analyzer": "body_search"
+      },
+      "snippet": {
+        "type": "text",
+        "fielddata": "true",
+        "analyzer": "body"
+      },
+      "is_attachment": {
+        "type": "boolean"
+      },
+      "size": {
+        "type": "integer"
+      },
+      "vsize": {
+        "type": "integer"
+      },
+      "message-id": {
+        "type": "keyword"
+      },
+      "date": {
+        "type": "keyword"
+      },
+      "x-mailer": {
+	"type": "text"
+      },
+      "delivered-to": {
+	"type": "text"
+      },
+      "return-path": {
+      	"type": "text"
+      },
+      "from": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
+          }
+        }
+      },
+      "sender": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
+          }
+        }
+      },
+      "to": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
+          }
+        }
+      },
+      "cc": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
+          }
+        }
+      },
+      "bcc": {
+        "type": "text",
+        "analyzer": "email",
+        "fields": {
+          "name": {
+            "type": "text",
+            "analyzer": "email_name"
+          },
+          "address": {
+            "type": "text",
+            "analyzer": "email_address"
+          }
+        }
+      },
+      "updated_date": {
+        "type": "date",
+        "format": "EEE, d MMM yyyy HH:mm:ss Z||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd"
+      }
+    }
+  }
+}
