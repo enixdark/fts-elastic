@@ -329,9 +329,6 @@ int elastic_connection_post(struct elastic_connection *conn,
     //int x = http_client_request_callback(http_req, &http_res);
     conn->request_status = 0;
     http_client_wait(elastic_http_client);
-    if(conn->request_status == -1){
-        i_error("\n ERROR DATA %s", str_c(data));
-    }
     FUNC_END_RET_INT(conn->request_status);
     return conn->request_status;
 }

@@ -846,6 +846,8 @@ fts_backend_elastic_header_want(const char *name)
            strcasecmp(name, "Subject") == 0 ||
            strcasecmp(name, "Sender") == 0 ||
            strcasecmp(name, "Message-ID") == 0 ||
+           strcasecmp(name, "MESSAGE-ID") == 0 ||
+           strcasecmp(name, "message-id") == 0 ||
            strcasecmp(name, "mailbox_name") == 0 ||
            strcasecmp(name, "Received") == 0 ||
            strcasecmp(name, "size") == 0 ||
@@ -1293,7 +1295,8 @@ elastic_add_definite_query(string_t *_fields, string_t *_fields_not,
     case SEARCH_HEADER:         /* fall through */
     case SEARCH_HEADER_ADDRESS: /* fall through */
     case SEARCH_HEADER_COMPRESS_LWSP:
-        if (!fts_header_want_indexed(arg->hdr_field_name))
+        //if(!fts_backend_elastic_header_want(arg->hdr_field_name))
+        if (!fts_header_want_indexed(arg->hdr_field_name) && strcasecmp(arg->hdr_field_name, "MESSAGE-ID") != 0)
         {
             i_debug("fts_elastic: field %s was skipped", arg->hdr_field_name);
             return FALSE;
